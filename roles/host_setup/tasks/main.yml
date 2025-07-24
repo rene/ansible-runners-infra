@@ -1,29 +1,3 @@
-- name: Install required packages
-  apt:
-    name:
-      - qemu-kvm
-      - qemu-user
-      - qemu-user-static
-      - binfmt-support
-      - libvirt-daemon-system
-      - virt-manager
-      - bridge-utils
-      - apt-transport-https
-      - curl
-      - software-properties-common
-      - genisoimage
-    state: present
-    update_cache: yes
-
-- name: Install Docker Engine
-  apt:
-    name:
-      - docker-ce
-      - docker-ce-cli
-      - containerd.io
-    state: latest
-    update_cache: yes
-
 - name: Ensure Docker service is running and enabled
   service:
     name: docker
@@ -117,14 +91,9 @@
     truncate -s 64m /var/lib/libvirt/images/efi.img
   when: arm_runners
 
-- name: flush efi
-  become: true
-  command: >
-    dd if=/usr/share/qemu-efi-aarch64/QEMU_EFI.fd of=/var/lib/libvirt/images/efi.img conv=notrunc
-  when: arm_runners
-
 - name: Create VM with cloud-init for arm
   shell: >
+    cp /var/lib/libvirt/images/varstore.img {{ vms.global.disk.folder }}/{{ item.name }}-varstore.img &&
     virt-install --name {{ item.name }}
     --ram {{ item.ram }}
     --vcpus={{ item.cpu_count }}
@@ -136,7 +105,7 @@
     --boot hd
     --machine virt
     --os-variant ubuntu22.04
-    --boot uefi,loader=/var/lib/libvirt/images/efi.img,nvram=/var/lib/libvirt/images/varstore.img
+    --boot uefi,loader=/usr/share/edk2/aarch64/QEMU_EFI-silent-pflash.raw,nvram={{ vms.global.disk.folder }}/{{ item.name }}-varstore.img
     --disk path={{ vms.global.cloud_init_server_dir }}/{{ item.name }}-cinit.iso,device=cdrom,bus=sata \
     --network default,model=virtio
     --import && virsh autostart {{ item.name }}
